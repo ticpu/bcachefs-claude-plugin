@@ -1,220 +1,202 @@
 # bcachefs Metadata Version History
 
-This document details all bcachefs on-disk metadata format versions. Each version represents a format change that requires an on-disk upgrade.
+All bcachefs on-disk metadata format versions, derived from git commit messages in the kernel tree.
 
-**Source**: `fs/bcachefs/bcachefs_format.h` in kernel tree
+**Source**: `BCH_METADATA_VERSIONS()` in `fs/bcachefs/bcachefs_format.h`
 
 ## Version Numbering
 
-Versions use major.minor format: `BCH_VERSION(major, minor)`
-- Major version changes indicate significant format overhauls (0.x -> 1.x)
-- Minor version changes indicate incremental format additions
-- Current minimum supported version: 9 (internal, pre-0.10)
-- Current version: determined by `bcachefs_metadata_version_max - 1`
+Versions use `BCH_VERSION(major, minor)` encoding.
+- Minimum supported: 9 (internal, pre-0.10)
+- Current: `bcachefs_metadata_version_max - 1`
+- Required upgrade below: `bcachefs_metadata_version_btree_node_accounting` (1.31)
 
-## 0.x Series (Initial Development)
+## 0.x Series
 
 ### 0.10 - bkey_renumber
-Renumbered key type values for better organization. Required compatibility code to translate old key type numbers to new ones during read.
+Replaced per-btree key type numbering with a single global `BCH_BKEY_TYPES()` enum where all key types have unique numbers. Also introduced the `bcachefs_metadata_version` enum and versioning scheme.
 
 ### 0.11 - inode_btree_change
-Changed inode btree key format: swapped inode and offset fields in bpos for better locality. Inodes now use offset field for inode number instead of inode field.
+Changed inode indexing from the inode field of bpos to the offset field, eliminating special cases in the btree iterator. Unified btree node min_key handling so min_key = bkey_successor() of the previous node for all btree types.
 
 ### 0.12 - snapshot
-**Major feature**: Introduced snapshot support. Added snapshot field to bpos (struct bpos gained snapshot field). Added KEY_TYPE_snapshot, KEY_TYPE_subvolume. Enabled copy-on-write snapshots.
+Started treating bpos.snapshot as part of the key in btree code. Keys in snapshot-aware btrees (extents, inodes, dirents, xattrs) now have snapshot set to U32_MAX, with BTREE_ITER_ALL_SNAPSHOTS controlling whether iteration includes the snapshot field. Introduced SPOS() macro.
 
 ### 0.13 - inode_backpointers
-Added backpointers from data extents to inodes they belong to, enabling more efficient fsck and data recovery.
+Added bi_dir and bi_dir_offset inode fields pointing back to the inode's parent dirent. Files that have ever been hardlinked get BCH_INODE_BACKPTR_UNTRUSTED. Needed for directories to support enumerating subvolumes by reconstructing paths to subvolume roots.
 
 ### 0.14 - btree_ptr_sectors_written
-Added sectors_written field to btree_ptr_v2 to track how much of a btree node has been written (important for partial writes and recovery).
+Changed btree node pointer management to update parent pointers after every btree node write, tracking sectors_written. Previously pointers were only updated on split/compact; now the parent always knows how much has been written, improving crash recovery.
 
 ### 0.15 - snapshot_2
-Snapshot improvements: fixed subvolume root inode tracking and snapshot/subvolume relationship handling. Required full fsck.
+Revved the format version to trigger compatibility code that creates initial entries in the subvolumes and snapshots btrees during upgrade: root snapshot node, root subvolume, and bi_subvol on the root inode.
 
 ### 0.16 - reflink_p_fix
-Fixed reflink_p (reflink pointer) key handling to correctly update reflink reference counts.
+Fixed uninitialized second word in reflink_p pointers. The version bump triggers cleanup during upgrade that zeroes out the second word of all existing reflink_p pointers.
 
 ### 0.17 - subvol_dirent
-Properly linked subvolumes to their directory entries, enabling correct subvolume parent tracking.
+Changed subvolume dirents to also record the subvolid of the parent subvolume, allowing subvolume dirents to be filtered when listing directories from other subvolumes. Ensures only one dirent across snapshot multiplicities points to a given subvolume.
 
 ### 0.18 - inode_v2
-Introduced KEY_TYPE_inode_v2 with improved field layout and additional metadata fields (better flags, timestamps, etc.).
+Introduced KEY_TYPE_inode_v2 and KEY_TYPE_alloc_v3 with a journal_seq field recording the journal sequence number at last modification. For alloc keys, tracks which journal entry must flush before bucket reuse. For inodes, enables correct fsync when evicted from VFS cache, replacing a bloom filter mechanism.
 
 ### 0.19 - freespace
-Added freespace btree (BTREE_ID_freespace) for tracking free space, improving allocation performance.
+Added freespace btree (extents btree of free buckets) and need_discard btree (buckets awaiting discards) for the allocator rewrite. Triggers on alloc keys keep these btrees in sync.
 
 ### 0.20 - alloc_v4
-**Major allocator change**: Introduced KEY_TYPE_alloc_v4 with comprehensive allocation metadata (dirty_sectors, cached_sectors, stripe pointer, etc.). Replaced older alloc key versions.
+Introduced KEY_TYPE_alloc_v4 without varints, in preparation for storing backpointers in alloc keys. Varint pack/unpack was impractical for in-place mutation. bch2_alloc_to_v4() converts older types as needed.
 
 ### 0.21 - new_data_types
-Refined data type classifications in the allocator (data vs metadata vs cached).
+Merged bucket states (free, need_gc_gens, need_discard) into BCH_DATA_TYPES(). Data type 0 = BCH_DATA_free, free buckets explicitly counted. Previously buckets in transitional states were unaccounted for.
 
 ### 0.22 - backpointers
-**Major feature**: Introduced backpointers btree (BTREE_ID_backpointers) mapping physical locations back to logical extents. Enables efficient space accounting and evacuate/rebalance operations.
+Added reverse index from device offset back to btree nodes and non-cached data extents. First 40 backpointers per bucket stored inline in alloc key, overflow in new BTREE_ID_backpointers btree. Enables copygc to find data without scanning all extents.
 
 ### 0.23 - inode_v3
-Introduced KEY_TYPE_inode_v3 with even more fields (bi_hash_seed moved to value, additional flags for features like encryption per-inode).
+Moved bi_size and bi_sectors into the non-varint portion of the inode so the write path avoids expensive unpack/pack. Added varint section offset field (allowing new non-varint fields without a new inode type). Moved bi_mode into flags for u64-aligned varint section.
 
 ### 0.24 - unwritten_extents
-Added support for unwritten/preallocated extents (allocated but not yet written, reading returns zeros).
+Added nocow mode where writes go in-place when possible. Introduced unwritten extent type, bi_nocow inode option, bucket locking for in-place write races, and a nocow write path that falls back to COW. Nocow implicitly disables checksumming and compression.
 
 ### 0.25 - bucket_gens
-Added bucket_gens btree (BTREE_ID_bucket_gens) tracking generation numbers for buckets, improving stale pointer detection. Required bucket_gens_init recovery pass.
+Added BTREE_ID_bucket_gens storing bucket generation numbers densely (256 per key) to improve mount times by reducing metadata scanned at startup. Triggers keep it in sync with the alloc btree.
 
 ### 0.26 - lru_v2
-Improved LRU (Least Recently Used) tracking for cache eviction with better metadata.
+Changed LRU index from KEY_TYPE_lru (bucket in value) to KEY_TYPE_set (bucket encoded in key bits). Eliminates collision checking on insert, enabling pure btree write buffer where updates are appended and batch-inserted.
 
 ### 0.27 - fragmentation_lru
-Added LRU tracking for fragmented extents to prioritize defragmentation of heavily fragmented data.
+Added LRU index of buckets ordered by fragmentation so copygc no longer scans every bucket. A fragmentation_lru field in bch_alloc_v4 records each bucket's LRU position.
 
 ### 0.28 - no_bps_in_alloc_keys
-Removed backpointers from alloc keys (moved fully to backpointers btree), simplifying allocator keys.
+Removed inline backpointers from alloc keys. The btree write buffer made the separate backpointers btree efficient enough. Version bump triggers fsck to clean up remaining inline backpointers.
 
 ### 0.29 - snapshot_trees
-Added snapshot_trees btree (BTREE_ID_snapshot_trees) for hierarchical snapshot tree management.
+Added BTREE_ID_snapshot_trees with KEY_TYPE_snapshot_tree providing persistent per-snapshot-tree identifiers. Each bch_snapshot points to its snapshot_tree. Designates one subvolume per tree as "main" for quota accounting.
 
-## 1.x Series (Stable Format)
+## 1.x Series
 
 ### 1.0 - major_minor
-**Major version bump**: Transitioned to 1.x version series, indicating format stabilization. This version marks the introduction of the major.minor versioning scheme.
+Introduced major.minor version numbering, replacing the flat integer scheme. Prior versions placed under major 0. Added BCH_SB_VERSION_UPGRADE_COMPLETE and changed upgrade handling from boolean to enum (none/compatible/incompatible).
 
 ### 1.1 - snapshot_skiplists
-Added skiplist structure to snapshots for O(log n) ancestor queries instead of O(n). Greatly improves snapshot deletion performance.
+Extended KEY_TYPE_snapshot with depth (distance from root) and skip[3] (skiplist entries for ancestor walking). Makes bch2_snapshot_is_ancestor() O(ln(n)) instead of O(n) in snapshot tree depth.
 
 ### 1.2 - deleted_inodes
-Added deleted_inodes btree (BTREE_ID_deleted_inodes) tracking unlinked but not yet deleted inodes (for crash recovery of unlink operations).
+Added deleted_inodes bitset btree to track inodes pending deletion, eliminating full inodes btree scan after unclean shutdown. check_inodes became fsck-only.
 
 ### 1.3 - rebalance_work
-Added infrastructure for background rebalance work tracking (moving data between devices to meet replication/compression targets).
+Added rebalance_work bitset btree to eliminate scanning for extents needing background rebalance (background_target, background_compression). Added bch_extent_rebalance extent field indicating pending work and which options to use, allowing per-inode options to propagate to indirect extents. Maintained by the extent trigger.
 
 ### 1.4 - member_seq
-Added sequence numbers to member devices for detecting stale device superblocks in multi-device filesystems.
+Added bch_member->seq tracking last superblock write sequence number and bch_sb->write_time for last write timestamp. Enables split-brain detection when members diverge.
 
 ### 1.5 - subvolume_fs_parent
-Added fs_parent field to subvolumes, tracking parent directory for proper path resolution.
+Added fs_path_parent field to bch_subvolume recording the parent subvolume in the directory tree, enabling efficient subvolume path resolution.
 
 ### 1.6 - btree_subvolume_children
-Added subvolume_children btree (BTREE_ID_subvolume_children) for efficient parent->child subvolume lookups.
+Added subvolume_children bitset btree recording parent-to-child subvolume relationships. Enables efficient subvolume listing and recursive deletion.
 
 ### 1.7 - mi_btree_bitmap
-Added bitmap to member_info tracking which btrees have data on each device (for device removal).
+Added 64-bit per-device btree_allocated_bitmap to bch_member tracking which ranges have btree nodes. Accelerates btree node scan during recovery by skipping empty ranges.
 
 ### 1.8 - bucket_stripe_sectors
-Added stripe_sectors tracking to alloc keys for erasure coding support (tracking sectors used by stripes per bucket).
+Added stripe_sectors and BCH_DATA_unstriped to alloc keys for accounting unstriped data in erasure-coded stripe buckets. Upgrade/downgrade requires regenerating alloc info only if erasure coding is in use.
 
 ### 1.9 - disk_accounting_v2
-**Major accounting change**: Moved space accounting from in-memory counters to on-disk accounting btree, enabling persistent and accurate accounting.
+Version marker for the new btree-based disk space accounting system, replacing replicas-table-based accounting. Requires check_alloc_info recovery pass on upgrade.
 
 ### 1.10 - disk_accounting_v3
-Refined disk_accounting_v2 with better key validation and endianness handling.
+Fixed padding bytes erroneously included in disk_accounting_key from v2. All unused bytes must be zeroed, so the padding was a correctness bug.
 
 ### 1.11 - disk_accounting_inum
-Added per-inode accounting tracking (space used per inode) in the accounting system.
+Added per-inode disk accounting counter tracking number of extents and total size (keyspace sectors and actual disk usage, across any snapshot ID). Enables reporting extra space from snapshot versioning and cheaply finding fragmented files by average extent size.
 
 ### 1.12 - rebalance_work_acct_fix
-Fixed accounting bugs in rebalance work tracking.
+Fixed rebalance_work accounting which incorrectly keyed off the presence of rebalance_opts in extents. Those options are kept around after rebalance for indirect extents since the inode's options are not directly available.
 
 ### 1.13 - inode_has_child_snapshots
-Added bi_has_child_snapshots flag to inodes indicating whether an inode has data in child snapshots (optimization for snapshot deletion).
+Added BCH_INODE_has_child_snapshot flag fixing a race where snapshotting while an unlinked file is open, then reattaching in the child, made the file appear deletable in the parent. New deletion rule: unlinked, non-open files without child snapshot references are deleted.
 
 ### 1.14 - backpointer_bucket_gen
-Added bucket generation number to backpointers, enabling detection of stale backpointers without reading alloc keys.
+Backpointers now include bucket generation number; obsolete bucket_offset field removed. Expensive forced incompatible upgrade requiring extents_to_backpointers pass to regenerate all backpointers, but enables cheaper check_extents_to_backpointers by comparing per-bucket backpointer sums against sector counts.
 
 ### 1.15 - disk_accounting_big_endian
-Fixed disk accounting to work correctly on big-endian systems.
+Changed disk accounting key sort order so the type tag is the most significant byte, causing same-type keys to sort together. Fixes a mount time regression by allowing startup accounting to skip non-mirrored counter types instead of interleaving them.
 
 ### 1.16 - reflink_p_may_update_opts
-Enabled reflink_p keys to carry extent options/flags that can be updated independently of the underlying reflink_v extent.
+Added flag to bch_reflink_p indicating whether a reflink pointer may propagate IO path option changes (nr_replicas, compression) back to the indirect extent. Previously option changes could not apply to reflinked data. Initially only set for source extents.
 
 ### 1.17 - inode_depth
-Added directory depth tracking to inodes for path resolution optimization.
+Added bi_depth to directory inodes recording depth from root. Makes check_directory_structure fsck pass efficient: checking parent has strictly smaller depth guarantees chains terminate at root, instead of following backpointers per directory.
 
 ### 1.18 - persistent_inode_cursors
-Added persistent inode allocation cursors (KEY_TYPE_inode_alloc_cursor in logged_ops btree) for better inode number allocation.
+Added persistent on-disk cursors for inode number allocation, avoiding full inodes btree scan from the beginning on each startup to find the next free inode number.
 
 ### 1.19 - autofix_errors
-**Behavior change**: Changed default error action to fix_safe, automatically fixing safe-to-fix errors during normal operation.
+Changed default error action for pre-existing filesystems to fix_safe, matching the default for newly created filesystems. Makes self-healing the default behavior upon upgrade.
 
 ### 1.20 - directory_size
-Added directory size tracking to inode metadata for efficient directory listing.
+Added directory size accounting. Parent directory size is updated when subdirectory entries are created or deleted. Fsck automatically recalculates on upgrade.
 
 ### 1.21 - cached_backpointers
-Enabled caching of backpointers in memory for faster backpointer lookups during IO operations.
+Cached pointers now have backpointers. Enables killing cached pointers in the bucket_invalidate path when invalidating or reusing buckets, instead of leaving stale pointers for gc_gens garbage collection (which requires a full metadata scan).
 
 ### 1.22 - stripe_backpointers
-Added backpointers for erasure-coded stripes, enabling proper stripe accounting and recovery.
+Stripes now have backpointers. Needed for scrub (stripe checksums verified separately from extents within the stripe) and for efficient evacuate and repair paths.
 
 ### 1.23 - stripe_lru
-Added LRU tracking for stripes to manage stripe cache eviction.
+Added persistent LRU for stripes ordered by number of empty blocks (reuse priority). Replaces the in-memory stripes heap, eliminating the need to read all stripes at startup.
 
 ### 1.24 - casefolding
-**Major feature**: Added casefold support (case-insensitive filenames) with per-directory flags. Added BCH_SB_CASEFOLD superblock flag.
+Implemented case-insensitive filename lookups using the same UTF-8 lowering/normalization as ext4 and f2fs. Uses a version number to gate feature usage plus an old-style incompat feature bit so kernels without casefolding support can detect it.
 
 ### 1.25 - extent_flags
-Added flags field to extent keys for storing extent-level metadata (e.g., nocow, compression hints).
+Added extent field for bitflags applying to entire extents. Incompatible (unknown extent fields cannot be parsed). Also adds BCH_EXTENT_poisoned flag marking data as known-bad (e.g., after checksum error required new checksum) so reads return errors.
 
 ### 1.26 - snapshot_deletion_v2
-Improved snapshot deletion algorithm with better handling of snapshot trees and interior node deletion.
+Speeds up snapshot deletion by only processing extents/dirents/xattrs btrees if an inode for the snapshot ID was present. Adds "deleted" flag to snapshot IDs instead of fully deleting them, so "key in missing snapshot" errors can trigger automatic repair.
 
 ### 1.27 - fast_device_removal
-Enabled fast device removal when no_stale_ptrs compat flag is set (no need to scan for stale pointers).
+Uses backpointers to find pointers to removed devices instead of full metadata scan. Requires BCH_SB_MEMBER_DELETED_UUID (incompatible). Device indexes not reused until fsck verifies no remaining pointers, since backpointers are not fully trusted.
 
 ### 1.28 - inode_has_case_insensitive
-Added bi_has_case_insensitive flag to inodes, marking whether directory uses casefold. Required for proper casefold directory handling.
+Added BCH_INODE_has_case_insensitive flag tracking whether a directory has case-insensitive descendants, so overlayfs can disallow mounting. Cheap upgrade ensures the flag is set on existing inodes. Create, rename, and fssetxattr maintain the flag.
 
 ### 1.29 - extent_snapshot_whiteouts
-Introduced KEY_TYPE_extent_whiteout for efficient handling of deleted extents in snapshot leaf nodes (instead of regular whiteouts).
+Added KEY_TYPE_extent_whiteout (incompat feature). The existing KEY_TYPE_whiteout breaks the monotonically increasing start-position invariant for extents needed for lookup termination; the new type preserves it.
 
 ### 1.30 - 31bit_dirent_offset
-Extended directory entry offset field to 31 bits (from previous limit), supporting much larger directories.
+32-bit programs need 31-bit readdir offsets. When inodes_32bit is enabled, dirent hashes are masked to 31 bits.
 
 ### 1.31 - btree_node_accounting
-**Major feature**: Added per-btree-node space accounting in the accounting system, enabling accurate btree space tracking.
+Added btree node number accounting: total btree nodes (ignoring replication) and non-leaf node count, for recovery progress reporting. Mandatory upgrade/downgrade.
 
 ### 1.32 - sb_field_extent_type_u64s
-Added superblock field tracking u64 sizes for extent types, supporting variable-size extent formats.
+Added superblock section recording sizes of extent entry types. Allows adding new extent entry types without breaking backwards compatibility, since older code can skip unknown types using recorded sizes.
 
 ### 1.33 - reconcile
-**Major feature**: Introduced reconcile system for managing IO options inheritance and updates. Added multiple reconcile btrees (BTREE_ID_reconcile_work, BTREE_ID_reconcile_hipri, BTREE_ID_reconcile_pending, BTREE_ID_reconcile_scan, BTREE_ID_reconcile_work_phys, BTREE_ID_reconcile_hipri_phys). Tracks and propagates extent option changes through reflink chains.
+Reworked rebalance into "reconcile." bch_extent_rebalance.needs_rb flags now track all reasons an extent needs rebalance processing. Split single rebalance_work counter into separate counters for different io path options (compression, checksum, replicas, erasure_code, etc.). Centralized logic in bch2_bkey_set_needs_rebalance().
 
 ### 1.34 - extented_key_type_error
-Extended KEY_TYPE_error format to zero-byte value (previously had 8-byte value), saving space when marking error keys.
+Extended KEY_TYPE_error with a bch_error structure containing a typed error code (err field) and specific reasons (unknown, device_removed, double_allocation). Previously error keys had an empty value; now they carry structured information.
 
 ### 1.35 - bucket_stripe_index
-Added stripe index tracking to alloc keys, enabling efficient stripe->bucket lookups and proper stripe reference counting.
+Replaced direct alloc key stripe pointer with a separate btree for bucket-to-stripe references, allowing buckets to be members of multiple stripes.
 
 ### 1.36 - no_sb_user_data_replicas
-Removed redundant user_data replicas tracking from superblock (now tracked via disk accounting).
-
-## Upgrade Requirements
-
-**Required upgrade below version 1.31 (btree_node_accounting)**: Filesystems below this version must be upgraded before mounting with current bcachefs-tools.
+Stopped storing replicas entries for user data in the superblock. On a 50-drive filesystem with 3x replication, the replicas section would contain 50^3 entries. Checking is deferred to accounting_read time.
 
 ## Downgrade Support
 
-The downgrade table in `sb/downgrade.c` specifies recovery passes and errors to silence when downgrading. Not all versions support downgrade - downgrading typically requires running fsck to regenerate metadata in older format.
+The downgrade table in `sb/downgrade.c` specifies recovery passes and errors to silence when downgrading. Not all versions support downgrade; downgrading typically requires fsck to regenerate metadata in older format.
 
 ## Version Checks in Code
 
-Version checks throughout the codebase use patterns like:
 ```c
 if (version >= bcachefs_metadata_version_foo)
-    // Use new format
+    // new format
 else
-    // Use old format or compatibility code
+    // old format / compatibility
 ```
 
-Key files with version checks:
-- `btree/read.c`, `btree/read.h` - Btree node compatibility
-- `btree/bkey_methods.c` - Key format compatibility
-- `sb/downgrade.c` - Upgrade/downgrade tables
-- `init/recovery.c` - Recovery pass requirements
-- Individual subsystem files check their specific version requirements
-
-## See Also
-
-- `architecture.md` - Overall bcachefs design
-- `format.md` - Current on-disk format details
-- `sb/downgrade_format.h` - Downgrade table structure
-- `init/passes_format.h` - Recovery passes triggered by upgrades
+Key files: `btree/read.c`, `btree/bkey_methods.c`, `sb/downgrade.c`, `init/recovery.c`.
