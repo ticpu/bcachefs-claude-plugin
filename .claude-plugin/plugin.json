@@ -1,0 +1,13 @@
+{
+  "name": "bcachefs-dev",
+  "version": "1.0.0",
+  "description": "bcachefs filesystem development context: architecture reference, subsystem documentation, and code navigation for kernel and userspace",
+  "author": {
+    "name": "Jérôme Poulin",
+    "email": "jeromepoulin@gmail.com",
+    "url": "https://github.com/ticpu"
+  },
+  "repository": "https://github.com/ticpu/bcachefs-claude-plugin",
+  "license": "GPL-2.0-only",
+  "keywords": ["bcachefs", "filesystem", "kernel", "linux", "cow", "btree"]
+}

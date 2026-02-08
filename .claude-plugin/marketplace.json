@@ -1,0 +1,19 @@
+{
+  "name": "bcachefs-dev",
+  "owner": {
+    "name": "Jérôme Poulin",
+    "email": "jeromepoulin@gmail.com"
+  },
+  "metadata": {
+    "description": "bcachefs filesystem development plugins"
+  },
+  "plugins": [
+    {
+      "name": "bcachefs-dev",
+      "source": "./",
+      "description": "bcachefs filesystem development context: architecture, subsystems, on-disk format, code navigation",
+      "category": "development",
+      "keywords": ["bcachefs", "filesystem", "kernel", "linux"]
+    }
+  ]
+}
