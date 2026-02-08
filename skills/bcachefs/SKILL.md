@@ -19,7 +19,11 @@ built on a relational-database-like btree layer, descended from bcache.
   If not configured, ask the user. The `KERNEL_VERSION` file at plugin root records the
   commit these docs were written against.
 - **Userspace tools**: https://evilpiepirate.org/git/bcachefs-tools.git
-- **Design doc**: `doc/bcachefs-principles-of-operation.tex` in bcachefs-tools repo
+- **Principles of Operation**: `doc/bcachefs-principles-of-operation.tex` in bcachefs-tools.
+  This is the **primary reference document** for bcachefs — read it first when working on
+  any bcachefs subsystem. It covers design decisions, on-disk structures, algorithms, and
+  trade-offs in depth. Located in the bcachefs-tools repo; if available in the user's
+  working directory, always consult it before the skill reference docs below.
 
 ## Source Layout (fs/bcachefs/)
 
