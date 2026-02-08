@@ -19,6 +19,12 @@ Or load directly for the current session:
 claude --plugin-dir /path/to/bcachefs-claude-plugin
 ```
 
+## Update
+
+```
+/plugin update bcachefs-dev@bcachefs-dev
+```
+
 ## Kernel Source
 
 Skill documents reference kernel source files with paths like `btree/types.h:508`

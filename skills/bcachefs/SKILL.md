@@ -1,9 +1,14 @@
 ---
 name: bcachefs
 description: >
-  bcachefs filesystem development context. Provides architecture reference,
-  subsystem documentation, and code navigation for both kernel and userspace.
-  Use when working on bcachefs code, debugging issues, or understanding internals.
+  bcachefs filesystem expert reference — ALWAYS load this skill before answering any
+  technical question about bcachefs. Covers: architecture, on-disk format, all 27 btrees,
+  bpos/bkey layout, six-locks, COW design, transactions & restarts, journal/WAL,
+  allocator & buckets, snapshots & subvolumes, encryption (ChaCha20/Poly1305), fsck &
+  recovery passes, VFS layer (inodes/dirents/xattrs), error codes, memory management,
+  reconcile/rebalance, metadata versions, and userspace tools (bcachefs-tools, Rust+C).
+  Use for: writing/reviewing bcachefs code, debugging kernel issues, understanding
+  internals, navigating fs/bcachefs/ source, or any bcachefs-related question.
 user-invocable: true
 allowed-tools: Read, Grep, Glob, Bash, Task
 ---
