@@ -301,12 +301,33 @@ Comment: "Iterators to interior nodes should always be pointed at the first non 
 - `creation_parent` / `fs_path_parent` - Hierarchy
 - Flags: RO, SNAP, UNLINKED
 
+### Snapshot vs Subvolume Distinction
+
+The `BCH_SUBVOLUME_SNAP` flag (bit 1 of `bch_subvolume.flags`) is the on-disk
+marker distinguishing snapshots from regular subvolumes. It is set at creation
+time based on whether `src_subvolid != 0` (subvolume.c:598):
+
+```c
+SET_BCH_SUBVOLUME_SNAP(&new_subvol->v, src_subvolid != 0);
+```
+
+The `creation_parent` field records which subvolume was snapshotted (0 for
+regular subvolumes). Userspace (`subvolume.rs`) uses `snapshot_parent != 0`
+(the `creation_parent` value) rather than the SNAP flag bit directly; both
+tests are equivalent since `BCH_SUBVOLUME_SNAP` is set exactly when
+`creation_parent != 0`.
+
+Fsck enforces the invariant that a non-SNAP subvolume must be the
+`master_subvol` of its snapshot tree (`check_subvol`, subvolume.c:154-176).
+If a non-SNAP subvolume is not the master, fsck sets SNAP=true on it. This
+ensures at most one non-SNAP subvolume per snapshot tree.
+
 ### `bch2_subvolume_create()` (subvolume.c:543-603)
 
 - `src_subvolid == 0`: New subvolume (no parent snapshot)
 - `src_subvolid != 0`: Snapshot of existing
   - Source gets `new_nodes[1]`, new subvol gets `new_nodes[0]`
-  - Sets SNAP and RO flags
+  - Sets SNAP flag; sets RO if requested
 
 ### `bch2_subvolume_unlink()` (subvolume.c:521-541)
 
@@ -315,9 +336,45 @@ Sets UNLINKED, triggers `bch2_subvolume_wait_for_pagecache_and_delete()`.
 
 ### `__bch2_subvolume_delete()` (subvolume.c:409-452)
 
-- Clears master_subvol if needed
+- Reparents child subvolumes whose `creation_parent` matches the deleted subvol
+- If deleting the master_subvol: sets `snapshot_tree.master_subvol = 0`
 - Deletes subvolume key
 - Calls `bch2_snapshot_node_set_deleted()` on snapshot
+
+### Master Subvolume Deletion Behavior
+
+When the master subvolume of a snapshot tree is deleted while snapshots remain:
+
+1. `master_subvol` is set to 0 (subvolume.c:441-448). No replacement is chosen.
+2. All remaining subvolumes keep `BCH_SUBVOLUME_SNAP = true`.
+3. The tree enters a "masterless" state that persists indefinitely.
+4. **Fsck does NOT fix `master_subvol = 0`**: `check_snapshot_tree()`
+   (check_snapshots.c:131-132) returns early when `master_subvol == 0`.
+   It only triggers `bch2_snapshot_tree_master_subvol()` when `master_subvol`
+   is nonzero but invalid (missing subvol, wrong tree, or SNAP subvol).
+5. No subvolume is ever automatically promoted to non-snapshot status.
+
+The selection algorithm (`bch2_snapshot_tree_master_subvol`,
+check_snapshots.c:62-93) only runs for nonzero-but-invalid master_subvol:
+
+- Scans all subvolumes whose snapshot is an ancestor of the tree root
+- Prefers a non-SNAP subvolume
+- Fallback: picks lowest subvolume ID via `bch2_snapshot_oldest_subvol()`
+- Clears `BCH_SUBVOLUME_SNAP` on the chosen subvolume
+
+The code handles `master_subvol = 0` defensively elsewhere:
+`find_snapshot_tree_subvol()` (fs/check.c) explicitly says "We can't rely on
+master_subvol - it might have been deleted" and falls back to scanning.
+Quotas skip handling when master_subvol is 0.
+
+**Userspace impact**: `subvolume list` (without `--snapshots`) shows nothing
+for the tree since all remaining entries have `snapshot_parent != 0`.
+The `--json` output shows `"subvol": 0` with no path. This is arguably an
+oversight in both kernel (no promotion) and userspace (no visibility).
+
+There is no check preventing deletion of the master subvolume; the only guard
+is `bch2_subvol_has_children()` which checks filesystem path children (nested
+subvolumes), not snapshot children.
 
 ## Initialization
 
@@ -336,7 +393,9 @@ Calls `__bch2_mark_snapshot()` on each to populate table.
 
 ### `bch2_check_snapshot_trees()` (check_snapshots.c:183-191)
 
-Validates root_snapshot, master_subvol consistency.
+Validates root_snapshot, master_subvol consistency. Note: returns early (no
+repair) when `master_subvol == 0`; only repairs nonzero-but-invalid values.
+See "Master Subvolume Deletion Behavior" above.
 
 ### `bch2_check_snapshots()` (check_snapshots.c:415-437)
 
