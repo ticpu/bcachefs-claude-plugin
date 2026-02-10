@@ -12,8 +12,8 @@ Claude Code plugin providing bcachefs development context.
 ## Testing locally after push
 
 ```
-claude plugin marketplace update bcachefs-dev
-claude plugin update bcachefs-dev@bcachefs-dev
+claude plugin marketplace update bcachefs-claude-plugin
+claude plugin update bcachefs-dev@bcachefs-claude-plugin
 ```
 
 The marketplace update fetches the latest remote; without it, `plugin update` compares against a stale local clone.
