@@ -6,12 +6,13 @@ for AI agents working on bcachefs kernel code and userspace tools.
 
 ## Install
 
-Add the marketplace and install:
+```
+claude plugin marketplace add ticpu/bcachefs-claude-plugin
+claude plugin install bcachefs-dev@bcachefs-dev
+claude plugin enable bcachefs-dev@bcachefs-dev
+```
 
-```
-/plugin marketplace add ticpu/bcachefs-claude-plugin
-/plugin install bcachefs-dev@bcachefs-dev
-```
+Restart any running Claude Code instance to pick up the new plugin.
 
 Or load directly for the current session:
 
@@ -24,8 +25,8 @@ claude --plugin-dir /path/to/bcachefs-claude-plugin
 Refresh the marketplace cache then update:
 
 ```
-/plugin marketplace update bcachefs-dev
-/plugin update bcachefs-dev@bcachefs-dev
+claude plugin marketplace update bcachefs-dev
+claude plugin update bcachefs-dev@bcachefs-dev
 ```
 
 ## Kernel Source
