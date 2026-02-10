@@ -103,3 +103,4 @@ Test: `cargo check` -> `cargo clippy --fix --allow-dirty` -> `cargo test`
 - bcachefs uses printbuf everywhere for text formatting (`prt_printf()` etc.)
 - Error handling: `fsck_err()` for fixable, `bch2_fs_inconsistent()` for corruption
 - Transactions restart on lock conflicts - check for `transaction_restart`
+- Do not use old nomenclature like rebalance, bcachefs setattr, rereplicate.

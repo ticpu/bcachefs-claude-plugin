@@ -252,6 +252,22 @@ From `BCH_RECONCILE_OPTS()` (format.h:147-153):
 
 Each option has a `*_from_inode` flag indicating if the value should be read from the inode (for user data) or stored in the extent (for indirect extents).
 
+## Replicas vs Target Interaction
+
+`data_replicas` and `background_target` are enforced independently. Replicas always wins.
+
+**2-device tiering (SSD foreground + HDD background) with per-inode `data_replicas=2`:**
+
+- Write path allocates 2 replicas across both devices (only option with 2 devices)
+- Reconcile flags SSD pointer as off-target (`RECONCILE_background_target`)
+- Reconcile tries to move SSD copy to HDD, fails — can't place 2 replicas on 1 device
+- Extent lands in `reconcile_pending` permanently (harmless)
+- **Stable state**: 1 copy SSD + 1 copy HDD, durability=2. Target stays pending.
+
+**Note**: `durability=0` on SSD breaks this — SSD copies don't count, can't reach `data_replicas=2` with 1 HDD. For 2 durable copies on HDD, need 3+ devices.
+
+**Option fixup** (opts.h:686-697): `background_target` defaults to `foreground_target` if unset.
+
 ## Interaction with Other Subsystems
 
 ### Move Path (data/move.c)
