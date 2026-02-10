@@ -21,7 +21,10 @@ claude --plugin-dir /path/to/bcachefs-claude-plugin
 
 ## Update
 
+Refresh the marketplace cache then update:
+
 ```
+/plugin marketplace update bcachefs-dev
 /plugin update bcachefs-dev@bcachefs-dev
 ```
 
