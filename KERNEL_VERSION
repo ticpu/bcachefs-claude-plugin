@@ -1,1 +1,22 @@
 93881f19dd8534ab905d7d4b423a436a8ae798e8
+
+# Skill docs last updated against kernel commit:
+# <short-hash> <date> <file>
+93881f19dd85 2026-02-07 allocator.md
+93881f19dd85 2026-02-10 architecture.md
+93881f19dd85 2026-02-07 btree.md
+93881f19dd85 2026-02-10 btrees.md
+93881f19dd85 2026-02-10 ec.md
+93881f19dd85 2026-02-07 encryption.md
+93881f19dd85 2026-02-10 format.md
+93881f19dd85 2026-02-07 fsck.md
+93881f19dd85 2026-02-07 infra.md
+93881f19dd85 2026-02-07 journal.md
+93881f19dd85 2026-02-07 memory_management.md
+93881f19dd85 2026-02-10 reconcile.md
+93881f19dd85 2026-02-10 reflink.md
+93881f19dd85 2026-02-10 snapshots.md
+93881f19dd85 2026-02-07 transactions.md
+93881f19dd85 2026-02-07 userspace.md
+93881f19dd85 2026-02-08 versions.md
+93881f19dd85 2026-02-07 vfs.md
