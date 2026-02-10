@@ -6,7 +6,9 @@ description: >
   bpos/bkey layout, six-locks, COW design, transactions & restarts, journal/WAL,
   allocator & buckets, snapshots & subvolumes, encryption (ChaCha20/Poly1305), fsck &
   recovery passes, VFS layer (inodes/dirents/xattrs), error codes, memory management,
-  reconcile/rebalance, metadata versions, and userspace tools (bcachefs-tools, Rust+C).
+  reconcile/rebalance, reflink (indirection, triggers, IO option propagation),
+  erasure coding (stripe geometry, lifecycle, reuse, re-striping), metadata versions,
+  and userspace tools (bcachefs-tools, Rust+C).
   Use for: writing/reviewing bcachefs code, debugging kernel issues, understanding
   internals, navigating fs/bcachefs/ source, or any bcachefs-related question.
 user-invocable: true
@@ -65,6 +67,8 @@ Pick the relevant ones based on $ARGUMENTS before answering questions.
 - [btrees.md](btrees.md) - All 27 btrees: key types, value formats, properties, relationships
 - [reconcile.md](reconcile.md) - Reconcile (rebalance): background data movement, 7 btrees, work lifecycle
 - [versions.md](versions.md) - All 47 metadata versions (0.10-1.36): format changes, feature introductions
+- [reflink.md](reflink.md) - Reflink indirection, triggers, IO option propagation, snapshot interaction
+- [ec.md](ec.md) - Erasure coding: stripe geometry, creation lifecycle, fragmentation/reuse, re-striping
 - [encryption.md](encryption.md) - ChaCha20/Poly1305 AEAD, key hierarchy, keyring pain, nonce vulnerability
 
 ## Key Architecture Points
