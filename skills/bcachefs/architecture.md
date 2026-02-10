@@ -21,7 +21,7 @@ types (extents, inodes, dirents, xattrs, etc.). Descended from bcache (block cac
 - **Snapshots via key versioning**: not COW-btree cloning (like btrfs); millions
   of snapshots possible; snapshot ID is part of every btree key position
 
-## 27 Btrees (bcachefs_format.h `BCH_BTREE_IDS()`)
+## 28 Btrees (bcachefs_format.h `BCH_BTREE_IDS()`)
 
 | ID | Name | Snapshot-aware | Notes |
 |----|------|---------------|-------|
@@ -48,6 +48,7 @@ types (extents, inodes, dirents, xattrs, etc.). Descended from bcache (block cac
 | 20 | accounting | no | disk accounting (write-buffered) |
 | 21-25 | reconcile_* | no | reconcile hipri/pending/scan/phys btrees |
 | 26 | bucket_to_stripe | no | bucket to stripe multi-mapping |
+| 27 | stripe_backpointers | no | stripe backpointers for repair (write-buffered) |
 
 ## Multi-Device
 

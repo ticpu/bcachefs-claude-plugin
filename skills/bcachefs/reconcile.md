@@ -157,6 +157,7 @@ When scan cookie exists (work.c:902-941, `do_reconcile_scan()`):
 
 **Device scan** (`RECONCILE_SCAN_device`):
 - Iterates backpointers for device (`do_reconcile_scan_bps()`, work.c:769-793)
+- Skips extents with `BACKPOINTER_ERASURE_CODED` flag (work.c:869-870) — EC extents are handled at the stripe level via `do_reconcile_stripe()`
 - Checks if data needs evacuation or re-targeting
 
 **Inode scan** (`RECONCILE_SCAN_inum`):
@@ -170,6 +171,11 @@ When scan cookie exists (work.c:902-941, `do_reconcile_scan()`):
 After scan completes, cookie is deleted (`bch2_clear_reconcile_needs_scan()`, work.c:169-193).
 
 ### 3. Processing Phases
+
+Phase types are enumerated (work.c:38-48):
+```
+enum reconcile_phase_type { scan, btree, phys, normal };
+```
 
 The reconcile thread (`bch2_reconcile_thread()`, work.c:1268-1293) processes work in phases (work.c:971-1012, `reconcile_phases[]`):
 
@@ -191,6 +197,14 @@ Phase 8: PENDING logical          (reconcile_pending)
 - Physical phases spawn per-device threads for rotational devices (`do_reconcile_phys()`, work.c:1076-1095)
 
 ### 4. Extent Processing
+
+**Stripes** (`do_reconcile_stripe()`, work.c:538-582):
+1. Checks if key is a stripe with `needs_reconcile` flag set
+2. Calls `bch2_stripe_repair()` (ec/create.c:1402) to repair degraded stripes
+3. Handles retry logic for block evacuation (`-BCH_ERR_stripe_needs_block_evacuate`)
+4. Maintains a stripe retry queue for stripes requiring block evacuation
+
+`bch2_bkey_set_needs_reconcile()` (trigger.c:796-812) now accepts `KEY_TYPE_stripe` in addition to direct-data extents, delegating to `set_needs_reconcile_stripe()` for stripe-specific logic.
 
 **Data extents** (`do_reconcile_extent()`, work.c:604-632):
 1. Look up extent in `BTREE_ID_extents` or `BTREE_ID_reflink`
@@ -311,6 +325,10 @@ Write-only triggers:
 - **`trigger_reconcile_wakeup`**: Wake thread immediately
 - **`trigger_reconcile_pending_wakeup`**: Retry pending work (sets `RECONCILE_SCAN_pending` cookie)
 
+### Progress Tracking (types.h:9-31)
+
+`struct bch_fs_reconcile` includes a `struct progress_indicator` and `struct bch_move_stats` for both work and scan phases. Progress is updated during btree iteration via `bch2_progress_update_iter()` and displayed in status output with byte/sector counts per phase.
+
 ### Status Output (work.c:1295-1366, `bch2_reconcile_status_to_text()`)
 
 When waiting:
@@ -398,9 +416,10 @@ Reconcile uses event tracing for debugging (work.c):
 
 ## Backpointer Flags
 
-In `struct bch_backpointer` (bcachefs_format.h:495):
-- `BACKPOINTER_RECONCILE_PHYS` (bits 0-1): Physical reconcile priority
-  - Maps work ID to physical btree for rotational device tracking
+In `struct bch_backpointer` (bcachefs_format.h:495-497):
+- `BACKPOINTER_RECONCILE_PHYS` (bits 0-1): Physical reconcile priority — maps work ID to physical btree for rotational device tracking
+- `BACKPOINTER_ERASURE_CODED` (bit 2): Marks EC-coded extents — reconcile scans skip these, deferring to stripe-level handling
+- `BACKPOINTER_STRIPE_PTR` (bit 3): Marks stripe pointers — used by `stripe_backpointers` btree (ID 27)
 
 ## Version History
 

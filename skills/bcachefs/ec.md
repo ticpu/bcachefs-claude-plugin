@@ -14,11 +14,13 @@
 
 ## On-Disk Structure
 
-### `bch_stripe` (format.h:7-43)
+### `bch_stripe` (format.h:7-51)
 
 ```
 sectors          (__le16)  - stripe size in sectors (= bucket size)
-algorithm        (__u8)    - parity algorithm
+algorithm        (4 bits)  - parity algorithm
+needs_reconcile  (1 bit)   - stripe needs reconcile (degraded/repair)
+unused           (3 bits)
 nr_blocks        (__u8)    - total blocks (data + parity)
 nr_redundant     (__u8)    - parity block count (1 or 2)
 csum_granularity_bits (__u8)
@@ -146,6 +148,37 @@ Action (reconcile/work.c:393-413):
 - EC wanted: sets `extra_replicas = 1`, `BCH_WRITE_must_ec` → write goes through EC path
 - EC not wanted: `ptrs_kill_ec` → removes stripe pointer from extents
 
+## Stripe Repair
+
+### `bch2_stripe_repair()` (create.c:1402)
+
+Repairs degraded stripes with data on invalid/removed devices:
+1. Validates stripe and identifies live data blocks
+2. Calculates how many blocks need evacuation from bad devices
+3. If evacuation needed: evacuates data blocks and returns `-BCH_ERR_stripe_needs_block_evacuate`
+4. If no evacuation: allocates a new stripe with recovered blocks, reconstructs lost parity data
+5. Manages the stripe state machine through the EC creation process
+
+Called from `do_reconcile_stripe()` (reconcile/work.c:538) when a stripe has `needs_reconcile` set.
+
+### `do_reconcile_stripe()` (reconcile/work.c:538)
+
+Reconcile now handles stripes directly:
+1. Checks if key is a stripe with `needs_reconcile` flag set
+2. Calls `bch2_stripe_repair()` to perform repair
+3. Handles retry logic for block evacuation errors
+4. Maintains a stripe retry queue for stripes requiring block evacuation
+
+### Backpointer Flags for EC
+
+Two new flags in `struct bch_backpointer` (bcachefs_format.h:496-497):
+- `BACKPOINTER_ERASURE_CODED` (bit 2): Marks EC-coded extents. Reconcile backpointer scans skip these, deferring handling to stripe-level reconciliation.
+- `BACKPOINTER_STRIPE_PTR` (bit 3): Marks stripe pointers. Used by `stripe_backpointers` btree (ID 27) for stripe repair on invalid/removed devices.
+
+### `stripe_backpointers` Btree (ID 27)
+
+Write-buffered btree storing `KEY_TYPE_backpointer` entries indexed by stripe pointers. Enables stripe repair for data on `BCH_SB_MEMBER_INVALID` devices. See btrees.md entry 27.
+
 ## Fault Isolation
 
 - EC and non-EC writes segregated at open-bucket level
@@ -157,6 +190,7 @@ Action (reconcile/work.c:393-413):
 
 - `stripes` (ID 6): stripe metadata, parity checksums
 - `bucket_to_stripe` (ID 26): reverse mapping bucket → stripe
+- `stripe_backpointers` (ID 27): backpointers for stripe repair on invalid/removed devices
 - `alloc` (ID 4): per-bucket `stripe_refcount`, `stripe_sectors`
 - `lru` (ID 10): `BCH_LRU_STRIPE_FRAGMENTATION` entries
 - `backpointers` (ID 13): stripe blocks point back to stripes btree

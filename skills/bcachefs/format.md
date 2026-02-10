@@ -59,6 +59,8 @@ write buffer size, extent BP_SHIFT.
 Entry types: `ptr`(0), `crc32`(1), `crc64`(2), `crc128`(3), `stripe_ptr`(4),
 `rebalance_v1`(5), `flags`(6), `reconcile`(7).
 
+Backpointer flags: `BACKPOINTER_RECONCILE_PHYS`(0-1), `BACKPOINTER_ERASURE_CODED`(2), `BACKPOINTER_STRIPE_PTR`(3).
+
 `bch_extent_ptr`: `dev`(8b), `offset`(44b = 8PB max), `gen`(8b),
 `unwritten`(1b), `cached`(1b).
 
@@ -109,7 +111,11 @@ Appended entries via `btree_node_entry`.
 
 ### Subvolumes
 
-`SUBVOLUME_CREATE`/`DESTROY` (v1 and v2)
+`SUBVOLUME_CREATE`/`DESTROY` (v1 and v2), `SUBVOLUME_LIST`
+
+### Snapshot Trees
+
+`SNAPSHOT_TREE` - queries full snapshot tree with per-node disk accounting
 
 ### Fsck
 

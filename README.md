@@ -48,9 +48,9 @@ Or in your project's `.claude/CLAUDE.md`:
 
 Use `/bcachefs <topic>` to load context on a subsystem:
 
-- `architecture` - Overall design, 27 btrees, multi-device
+- `architecture` - Overall design, 28 btrees, multi-device
 - `btree` - Node format, bpos/bkey, iteration, bsets
-- `btrees` - All 27 btrees: key types, value formats, properties
+- `btrees` - All 28 btrees: key types, value formats, properties
 - `transactions` - Transaction lifecycle, restarts, locking, triggers
 - `allocator` - Buckets, journal, recovery, data IO
 - `memory_management` - Btree cache, shrinkers, key cache

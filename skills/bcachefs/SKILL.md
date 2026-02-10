@@ -2,7 +2,7 @@
 name: bcachefs
 description: >
   bcachefs filesystem expert reference — ALWAYS load this skill before answering any
-  technical question about bcachefs. Covers: architecture, on-disk format, all 27 btrees,
+  technical question about bcachefs. Covers: architecture, on-disk format, all 28 btrees,
   bpos/bkey layout, six-locks, COW design, transactions & restarts, journal/WAL,
   allocator & buckets, snapshots & subvolumes, encryption (ChaCha20/Poly1305), fsck &
   recovery passes, VFS layer (inodes/dirents/xattrs), error codes, memory management,
@@ -64,7 +64,7 @@ Pick the relevant ones based on $ARGUMENTS before answering questions.
 - [userspace.md](userspace.md) - bcachefs-tools structure
 - [fsck.md](fsck.md) - Recovery passes, fsck checks, journal replay, topology repair
 - [journal.md](journal.md) - WAL journal: format, write path, reclaim, replay, blacklisting
-- [btrees.md](btrees.md) - All 27 btrees: key types, value formats, properties, relationships
+- [btrees.md](btrees.md) - All 28 btrees: key types, value formats, properties, relationships
 - [reconcile.md](reconcile.md) - Reconcile (rebalance): background data movement, 7 btrees, work lifecycle
 - [versions.md](versions.md) - All 47 metadata versions (0.10-1.36): format changes, feature introductions
 - [reflink.md](reflink.md) - Reflink indirection, triggers, IO option propagation, snapshot interaction
@@ -73,7 +73,7 @@ Pick the relevant ones based on $ARGUMENTS before answering questions.
 
 ## Key Architecture Points
 
-- **27 separate btrees** for different data types (extents, inodes, dirents, xattrs, alloc, snapshots, etc.)
+- **28 separate btrees** for different data types (extents, inodes, dirents, xattrs, alloc, snapshots, etc.)
 - **bpos** = (inode, offset, snapshot) - three-dimensional sort key
 - **Large COW btree nodes** (128K-256K) with log-structured bsets
 - **Six-locks** (read/intent/write) - btree locks never held during IO

@@ -2,7 +2,7 @@
 
 ## Overview
 
-bcachefs uses 27 btrees (BTREE_ID_NR = 27, bcachefs_format.h:532-640). Each btree has specific properties and stores different types of data. Btrees are identified by `enum btree_id`.
+bcachefs uses 28 btrees (BTREE_ID_NR = 28, bcachefs_format.h:532-640). Each btree has specific properties and stores different types of data. Btrees are identified by `enum btree_id`.
 
 ## Btree Properties (bcachefs_format.h:524-530)
 
@@ -16,7 +16,7 @@ bcachefs uses 27 btrees (BTREE_ID_NR = 27, bcachefs_format.h:532-640). Each btre
 
 Write-buffered btrees batch updates for performance. Updates accumulate in memory and flush periodically, making these updates **unordered and eventually consistent**. See btree/write_buffer.h.
 
-Write-buffered: lru, backpointers, deleted_inodes, reconcile_work, accounting, reconcile_hipri, reconcile_pending, reconcile_work_phys, reconcile_hipri_phys.
+Write-buffered: lru, backpointers, deleted_inodes, reconcile_work, accounting, reconcile_hipri, reconcile_pending, reconcile_work_phys, reconcile_hipri_phys, stripe_backpointers.
 
 ## Key Format (struct bpos)
 
@@ -589,14 +589,29 @@ bpos has three fields (bcachefs_format.h:136-160):
 
 **Related btrees**: stripes (referenced), alloc (buckets).
 
+---
+
+### 27. BTREE_ID_stripe_backpointers
+
+**Purpose**: Backpointers indexed by stripe pointers, for pointers to `BCH_SB_MEMBER_INVALID` that point to a stripe. Enables stripe repair for data on invalid/removed devices.
+
+**Flags**: BTREE_IS_write_buffer
+
+**Key format**: Same as backpointers (device, offset, discriminator).
+
+**Value types**:
+- KEY_TYPE_backpointer (with `BACKPOINTER_ERASURE_CODED` and `BACKPOINTER_STRIPE_PTR` flags)
+
+**Related btrees**: stripes, backpointers, alloc.
+
 ## Btree ID Enum and Ordering
 
-Btrees ordered 0-26 via BCH_BTREE_IDS() macro (bcachefs_format.h:532-634). Each entry: `x(name, nr, flags, valid_key_types)`. Enum btree_id generated at line 636-641.
+Btrees ordered 0-27 via BCH_BTREE_IDS() macro (bcachefs_format.h:534-646). Each entry: `x(name, nr, flags, valid_key_types)`. Enum btree_id generated at line 642-647.
 
 ## Reconstructible Btrees
 
-Some btrees can be reconstructed from others (bcachefs_format.h:1507-1535):
-- All alloc-related (btree_id_is_alloc): alloc, backpointers, need_discard, freespace, bucket_gens, lru, accounting, reconcile_work/hipri/pending/scan
+Some btrees can be reconstructed from others (bcachefs_format.h:1489-1535):
+- All alloc-related (btree_id_is_alloc): alloc, backpointers, stripe_backpointers, need_discard, freespace, bucket_gens, lru, accounting, reconcile_work/hipri/pending/scan
 - snapshot_trees, deleted_inodes, subvolume_children
 
 Recovery can rebuild these via scan or from other data.

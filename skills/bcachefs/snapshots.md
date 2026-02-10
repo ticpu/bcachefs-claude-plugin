@@ -47,7 +47,7 @@ Swapped atomically via `kvfree_rcu()`.
 
 ### Fast Path: `__bch2_snapshot_is_ancestor()` (snapshot.c:113-135)
 
-Two-layer approach:
+Takes `struct btree_trans *` (not `bch_fs *`) as first parameter. Two-layer approach:
 
 1. **Skiplist phase** (O(log n)): While target is >128 positions away, `get_ancestor_below()` (snapshot.c:89-102) jumps to the largest of 3 skip entries that doesn't overshoot. Each step covers ~3/4 of remaining distance.
 2. **Bitmap phase** (O(1)): Within 128 positions, `test_ancestor_bitmap()` (snapshot.c:104-111) does a single bit test on the 128-bit `is_ancestor` bitmap.
@@ -71,7 +71,7 @@ Used during recovery when skiplist/bitmap not yet validated.
 
 ### Public API (snapshot.h:196-228)
 
-- `bch2_snapshot_is_ancestor(c, id, ancestor)` - Main entry (inline, handles id==ancestor)
+- `bch2_snapshot_is_ancestor(trans, id, ancestor)` - Main entry (inline, handles id==ancestor). Takes `struct btree_trans *` (not `bch_fs *`).
 - `bch2_snapshot_nth_parent(c, id, n)` (snapshot.h:108-116) - Linear walk, used only at creation
 - `bch2_snapshot_root(c, id)` (snapshot.h:120-129)
 
@@ -110,6 +110,7 @@ Called as btree trigger on insert/update:
 1. **Scan**: `check_should_delete_snapshot()` (delete.c:497-556)
    - 0 live children -> `delete_leaves`
    - 1 live child -> `delete_interior` with `live_child` mapping
+   - Dying snapshots stored in an eytzinger-layout search tree (`eytzinger_delete_list`) for O(log n) lookup during key processing
 2. **Key deletion** (two strategies):
    - V1: `delete_dead_snapshot_keys_v1()` (delete.c:378) - iterate all btrees
    - V2: `delete_dead_snapshot_keys_v2()` (delete.c:427) - accelerated by inode ranges
@@ -388,6 +389,10 @@ subvolumes), not snapshot children.
 
 Reverse iteration of BTREE_ID_snapshots (ancestors before descendants).
 Calls `__bch2_mark_snapshot()` on each to populate table.
+
+### `bch2_snapshot_id_list_to_text()` (snapshot.c:801)
+
+Formats a `snapshot_id_list` as space-separated snapshot IDs for debugging output.
 
 ## Fsck (check_snapshots.c)
 
