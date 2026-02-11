@@ -49,8 +49,8 @@ Swapped atomically via `kvfree_rcu()`.
 
 Takes `struct btree_trans *` (not `bch_fs *`) as first parameter. Two-layer approach:
 
-1. **Skiplist phase** (O(log n)): While target is >128 positions away, `get_ancestor_below()` (snapshot.c:89-102) jumps to the largest of 3 skip entries that doesn't overshoot. Each step covers ~3/4 of remaining distance.
-2. **Bitmap phase** (O(1)): Within 128 positions, `test_ancestor_bitmap()` (snapshot.c:104-111) does a single bit test on the 128-bit `is_ancestor` bitmap.
+1. **Skiplist phase** (O(log n)): While ancestor and descendant are more than 128 snapshot IDs apart, `get_ancestor_below()` (snapshot.c:89-102) jumps to the largest of 3 skip entries that doesn't overshoot. Each step covers ~3/4 of remaining distance.
+2. **Bitmap phase** (O(1)): When ancestor and descendant are within 128 snapshot IDs of each other, `test_ancestor_bitmap()` (snapshot.c:104-111) does a single bit test on the 128-bit `is_ancestor` bitmap.
 
 ### Skiplist Construction
 

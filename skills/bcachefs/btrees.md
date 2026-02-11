@@ -14,7 +14,12 @@ bcachefs uses 28 btrees (BTREE_ID_NR = 28, bcachefs_format.h:532-640). Each btre
 
 ## Write-Buffered Btrees
 
-Write-buffered btrees batch updates for performance. Updates accumulate in memory and flush periodically, making these updates **unordered and eventually consistent**. See btree/write_buffer.h.
+Write-buffered btrees batch updates in memory and flush periodically rather than
+applying directly to btree nodes, reducing write amplification for high-frequency
+per-IO metadata (backpointers, LRU timestamps, accounting counters). Flushing sorts
+the entire batch, deduplicates redundant updates, then walks btree nodes in order for
+efficient bulk insertion; this sort-merge-sweep is inherently single-threaded, making
+its efficiency critical for multithreaded workloads. See btree/write_buffer.h.
 
 Write-buffered: lru, backpointers, deleted_inodes, reconcile_work, accounting, reconcile_hipri, reconcile_pending, reconcile_work_phys, reconcile_hipri_phys, stripe_backpointers.
 

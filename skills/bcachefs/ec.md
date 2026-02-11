@@ -181,6 +181,8 @@ Write-buffered btree storing `KEY_TYPE_backpointer` entries indexed by stripe po
 
 ## Fault Isolation
 
+- Stripe fragmentation tracked in LRU btree so copygc and stripe reuse can
+  reclaim mostly-empty stripes
 - EC and non-EC writes segregated at open-bucket level
 - Non-EC extents never carry `stripe_ptr` entries, never read through EC reconstruction
 - Btree nodes explicitly checked: `stripe_update_extent()` (create.c:173) calls `bch2_fs_inconsistent()` if backpointer has `level > 0`

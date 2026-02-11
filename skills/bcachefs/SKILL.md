@@ -2,15 +2,19 @@
 name: bcachefs
 description: >
   bcachefs filesystem expert reference — ALWAYS load this skill before answering any
-  technical question about bcachefs. Covers: architecture, on-disk format, all 28 btrees,
-  bpos/bkey layout, six-locks, COW design, transactions & restarts, journal/WAL,
-  allocator & buckets, snapshots & subvolumes, encryption (ChaCha20/Poly1305), fsck &
-  recovery passes, VFS layer (inodes/dirents/xattrs), error codes, memory management,
-  reconcile/rebalance, reflink (indirection, triggers, IO option propagation),
-  erasure coding (stripe geometry, lifecycle, reuse, re-striping), metadata versions,
-  and userspace tools (bcachefs-tools, Rust+C).
+  technical question about bcachefs. Covers architecture and design motivations,
+  on-disk format, all 28 btrees, bpos/bkey layout, six-locks, COW design,
+  transactions & restarts, journal/WAL, allocator & buckets (evolution from
+  scanning threads to btree-based structures), snapshots & subvolumes,
+  compression (per-extent rationale), encryption (ChaCha20/Poly1305), fsck &
+  recovery passes, VFS layer (inodes/dirents/xattrs), error codes, memory
+  management, reconcile (pending-work tracking, rebalance-spinning fix),
+  reflink (indirection, triggers, IO option propagation, de-indirection trade-offs),
+  erasure coding (stripe geometry, lifecycle, fragmentation LRU, reuse, re-striping),
+  metadata versions, and userspace tools (bcachefs-tools, Rust+C).
   Use for: writing/reviewing bcachefs code, debugging kernel issues, understanding
-  internals, navigating fs/bcachefs/ source, or any bcachefs-related question.
+  internals and design trade-offs, navigating fs/bcachefs/ source, reviewing or
+  writing documentation, or any bcachefs-related question.
 user-invocable: true
 allowed-tools: Read, Grep, Glob, Bash, Task
 ---
@@ -52,10 +56,10 @@ util/           Utilities (printbuf, six, darray, closure, clock, eytzinger)
 Read the reference docs bundled with this skill (same directory as this file).
 Pick the relevant ones based on $ARGUMENTS before answering questions.
 
-- [architecture.md](architecture.md) - Overall design, btree-centric architecture
+- [architecture.md](architecture.md) - Overall design, btree-centric architecture, compression rationale
 - [btree.md](btree.md) - B-tree implementation, node format, iteration
 - [transactions.md](transactions.md) - Transaction lifecycle, restarts, locking, triggers
-- [allocator.md](allocator.md) - Space allocation, journal, recovery
+- [allocator.md](allocator.md) - Space allocation, btree-based alloc infrastructure, journal, recovery
 - [memory_management.md](memory_management.md) - Btree cache, shrinkers, key cache, bio pools
 - [snapshots.md](snapshots.md) - Snapshot table, ancestor queries, deletion, subvolumes, whiteouts
 - [vfs.md](vfs.md) - Inodes, directories, xattrs, quotas, encryption
@@ -65,7 +69,7 @@ Pick the relevant ones based on $ARGUMENTS before answering questions.
 - [fsck.md](fsck.md) - Recovery passes, fsck checks, journal replay, topology repair
 - [journal.md](journal.md) - WAL journal: format, write path, reclaim, replay, blacklisting
 - [btrees.md](btrees.md) - All 28 btrees: key types, value formats, properties, relationships
-- [reconcile.md](reconcile.md) - Reconcile (rebalance): background data movement, 7 btrees, work lifecycle
+- [reconcile.md](reconcile.md) - Reconcile (rebalance): background data movement, 7 btrees, work lifecycle, pending-work tracking
 - [versions.md](versions.md) - All 47 metadata versions (0.10-1.36): format changes, feature introductions
 - [reflink.md](reflink.md) - Reflink indirection, triggers, IO option propagation, snapshot interaction
 - [ec.md](ec.md) - Erasure coding: stripe geometry, creation lifecycle, fragmentation/reuse, re-striping
@@ -75,11 +79,12 @@ Pick the relevant ones based on $ARGUMENTS before answering questions.
 
 - **28 separate btrees** for different data types (extents, inodes, dirents, xattrs, alloc, snapshots, etc.)
 - **bpos** = (inode, offset, snapshot) - three-dimensional sort key
-- **Large COW btree nodes** (128K-256K) with log-structured bsets
-- **Six-locks** (read/intent/write) - btree locks never held during IO
+- **Large COW btree nodes** (128K-256K) with log-structured bsets; own cache (not page cache)
+- **Six-locks** (shared/intent/exclusive) - btree locks never held during IO; intent allows multi-node ops without holding write locks
 - **Journal (WAL)** for crash recovery; btree nodes written lazily
 - **Snapshots via key versioning** - snapshot ID part of every bpos, not COW-btree cloning
-- **Bucket-based allocation** with copy-GC for fragmentation
+- **Bucket-based allocation** with copy-GC for fragmentation; btree-based free/discard/LRU tracking
+- **Per-extent compression** (gzip, lz4, zstd) - better ratios than 4K-page granularity
 - **400+ error codes** hierarchical on Linux errnos (`bch2_err_matches()`)
 - **~48 recovery passes** with dependency tracking
 

@@ -84,6 +84,13 @@ Seven phases:
 6. **Apply**: Insert keys into leaf nodes or key cache
 7. **Cleanup**: Unlock, release reservations
 
+## Six-Locks
+
+Btree nodes use six-locks (shared/intent/exclusive). The intent state allows an
+operation that modifies multiple nodes to hold intent locks for its duration,
+upgrading to write only for each individual in-memory update. This avoids holding
+write locks across entire split or merge operations.
+
 ## Lock Ordering
 
 Enforced by `__btree_path_cmp()` (iter.c:49-62):

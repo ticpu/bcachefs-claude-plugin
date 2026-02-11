@@ -86,8 +86,10 @@ When `BTREE_TRIGGER_insert` and refcount==0:
 Reflink is currently one-way: reflink_v never converts back to KEY_TYPE_extent at refcount=1.
 
 De-indirection challenges:
-- reflink_v trigger doesn't know which reflink_p holds last reference
+- reflink_v trigger would need to walk transaction updates to find the sole remaining reflink_p
 - fcollapse/finsert cause transient 1→0→1 refcount fluctuations in single transaction
+- With IO option propagation, de-indirecting at refcount 1 is becoming more pressing:
+  a lone indirect extent with one reference still pays an extra btree lookup on every read
 - reflink_p keys not merged (merged pointer could span unbounded reflink_v fragments)
 
 ## Read Path
