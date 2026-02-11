@@ -149,12 +149,28 @@ Guarantees ordering of btree updates after a crash by detecting when a btree nod
 was flushed to disk but its corresponding journal entry was not; otherwise recovery
 could see later updates without the earlier updates they depended on.
 
+### Creation
+
 - Bsets record max journal seq of updates they contain
 - On recovery, if a bset's seq > newest journal seq, the bset is ignored
-- The skipped seq is blacklisted in superblock (`bch_sb_field_journal_seq_blacklist`)
-- Lookup via eytzinger0 sorted table (`journal_seq_blacklist_table`)
-- `bch2_journal_seq_is_blacklisted()`: O(log n) lookup
-- `bch2_blacklist_entries_gc()`: removes entries no longer needed
+- After unclean shutdown (recovery.c:770): `start_seq = seq_read_end + 1 + JOURNAL_BUF_NR * 4` (64 entries padding for in-flight btree writes), range `[seq_read_end+1, start_seq)` blacklisted via `bch2_journal_seq_blacklist_add()`
+- Existing `blacklist`/`blacklist_v2` journal entries also added during replay (recovery.c:544-559)
+- Stored in superblock `bch_sb_field_journal_seq_blacklist` as sorted `{start, end}` ranges (half-open)
+
+### Runtime
+
+- Blacklisted sequences are never reused — the 64-bit counter skips past them
+- `bch2_fs_journal_start()` (init.c:370): sets `start_seq = max(start_seq, bch2_journal_last_blacklisted_seq(c))`
+- `journal_entry_open()` (journal.c:404): safety check — if new seq is blacklisted, forces emergency read-only (should never happen)
+- `bch2_journal_seq_next_nonblacklisted()`: advances a seq past any blacklisted range (used in journal read)
+- Lookup via eytzinger0 sorted table (`journal_seq_blacklist_table`), O(log n)
+
+### Garbage Collection
+
+- `bch2_blacklist_entries_gc()` (seq_blacklist.c:276): runs at end of recovery (recovery.c:889)
+- Entry retained if `dirty` flag set (a btree node on disk referenced it) OR `end >= oldest_seq_found_ondisk` (unread btree nodes may still reference it)
+- `dirty` flag set by `bch2_journal_seq_is_blacklisted(c, seq, true)` calls in `btree/read.c:748` and `journal/read.c:1472`
+- Once all btree nodes referencing blacklisted sequences are rewritten, entries are removed from superblock
 
 ## Journal Replay (`journal/read.c`, `init/recovery.c`)
 
