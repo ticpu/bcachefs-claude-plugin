@@ -26,7 +26,9 @@ write buffer size, extent BP_SHIFT.
 
 `journal`/`journal_v2`, `members_v1`/`v2`, `crypt`, `replicas`,
 `quota`, `disk_groups`, `clean` (btree roots on clean shutdown),
-`counters`, `errors`, `recovery_passes`, `extent_type_u64s`.
+`counters`, `errors` (persistent error log: ensures self-healed errors are visible
+in bug reports even when users only report once the filesystem breaks completely),
+`recovery_passes`, `extent_type_u64s`.
 
 ## Key Types (37, enum bch_bkey_type)
 

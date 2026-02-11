@@ -145,9 +145,9 @@ Issues blkdev_issue_discard for journal buckets between `discard_idx` and
 
 ## Sequence Blacklisting (`journal/seq_blacklist.c`)
 
-Prevents reuse of journal sequence numbers that correspond to btree bset updates
-that were flushed to disk but never journalled. Without this, recovery could see
-partial ordering violations (bset B flushed after bset A, but A's journal entry lost).
+Guarantees ordering of btree updates after a crash by detecting when a btree node
+was flushed to disk but its corresponding journal entry was not; otherwise recovery
+could see later updates without the earlier updates they depended on.
 
 - Bsets record max journal seq of updates they contain
 - On recovery, if a bset's seq > newest journal seq, the bset is ignored

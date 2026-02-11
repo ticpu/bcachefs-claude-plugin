@@ -30,12 +30,33 @@ Free -> Allocated (open bucket) -> Dirty (data written) -> Clean (btree flushed)
 
 ### bch_alloc_v4 (alloc/format.h)
 
-- `gen` / `oldest_gen`: generation numbers (prevent stale pointers)
+- `gen` / `oldest_gen`: generation numbers (prevent stale pointers; also used for
+  bootstrapping allocation info during journal replay and repairing certain
+  corruption that would otherwise be unrecoverable)
 - `data_type`: free, sb, journal, btree, user, cached, parity, stripe_head
 - `dirty_sectors` / `cached_sectors` / `stripe_sectors`
 - `io_time[2]`: read/write timestamps
 - `journal_seq_nonempty` / `journal_seq_empty`
 - Flags: `NEED_DISCARD`, `NEED_INC_GEN`, `BACKPOINTERS_START`, `NR_BACKPOINTERS`
+
+### Btree-Based Allocation Infrastructure
+
+The allocator originally used in-memory bucket arrays and scanning threads for
+free lists, discard lists, and eviction heaps. These were replaced by btree-based
+structures: a freespace btree (ID 11), a discard btree (ID 12), and an LRU btree
+(ID 10). The scanning threads are gone entirely; the replacement code is
+transactional and trigger-based, easier to debug and reason about. The old threads
+were prone to excessive CPU usage when nearly full; the btree approach eliminated
+those corner cases.
+
+A fragmentation LRU btree tracks bucket fill levels so copygc can find the most
+fragmented buckets directly instead of scanning the entire alloc btree.
+
+### SMR/Zoned Device Support
+
+Buckets map naturally to zones: allocating a bucket means writing to it once in
+append-only fashion, then never writing to it again until discarding and reusing
+the whole thing — exactly the semantics a zoned device requires.
 
 ### Disk Reservations
 

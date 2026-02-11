@@ -13,7 +13,10 @@ types (extents, inodes, dirents, xattrs, etc.). Descended from bcache (block cac
 - **Bucket-based allocation**: disk divided into buckets (typically 512K-2MB);
   sequential writes within bucket; copy-GC handles fragmentation
 - **Very large btree nodes** (128K-256K): log-structured with multiple bsets per
-  node; compacted in memory; shallow trees = few seeks
+  node; compacted in memory; shallow trees = few seeks. bcachefs manages its own
+  btree node cache rather than using the Linux page cache (which limits other COW
+  filesystems to 4K nodes); this allows tuning reclaim independently and avoids
+  deep btrees with excessive seeks at petabyte scale
 - **Btree locks never held during IO**: critical for latency; transactions drop
   and retake locks aggressively
 - **Journal (WAL)**: records btree updates; btree nodes written lazily; enables
@@ -49,6 +52,15 @@ types (extents, inodes, dirents, xattrs, etc.). Descended from bcache (block cac
 | 21-25 | reconcile_* | no | reconcile hipri/pending/scan/phys btrees |
 | 26 | bucket_to_stripe | no | bucket to stripe multi-mapping |
 | 27 | stripe_backpointers | no | stripe backpointers for repair (write-buffered) |
+
+## Compression
+
+Supports gzip, lz4, and zstd. Compression operates at per-extent granularity (not
+per-page 4K blocks): compression algorithms find more redundancy with more data at
+once, and compressing at 4K granularity creates alignment issues where rounding
+compressed output back to block alignment loses much of the ratio. Per-extent
+granularity also simplifies the IO path since everything works in terms of extents
+with nothing smaller to handle.
 
 ## Multi-Device
 

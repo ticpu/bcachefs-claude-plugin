@@ -40,6 +40,11 @@ Reconcile uses 6 btrees (IDs 18, 21-25) for work tracking:
 - **Flags**: `BTREE_IS_snapshot_field`, `BTREE_IS_write_buffer`
 - **Keys**: `KEY_TYPE_set`
 - **Retry trigger**: Device add/resize, label change (`bch2_reconcile_pending_wakeup()`)
+- **Design motivation**: Solves the old "rebalance spinning" problem where the rebalance
+  thread would burn CPU retrying moves that could not complete (e.g. target full). Practical
+  consequence: a single-device filesystem with `replicas=2` marks all data as degraded with
+  1x availability; when a second device is added, reconcile automatically replicates
+  everything to 2x without further intervention
 
 ### 4. `reconcile_scan` (ID 23)
 - **Purpose**: Scan cookies and btree node backpointers
