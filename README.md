@@ -9,16 +9,34 @@ for AI agents working on bcachefs kernel code and userspace tools.
 ```
 claude plugin marketplace add ticpu/bcachefs-claude-plugin
 claude plugin install bcachefs-dev@bcachefs-claude-plugin
-claude plugin enable bcachefs-dev@bcachefs-claude-plugin
 ```
 
 Restart any running Claude Code instance to pick up the new plugin.
+
+Verify the installation:
+
+```
+❯ claude plugin list bcachefs-claude-plugin
+Installed plugins:
+
+  ❯ bcachefs-dev@bcachefs-claude-plugin
+    Version: 1.1.0
+    Scope: user
+    Status: ✔ enabled
+```
 
 Or load directly for the current session:
 
 ```
 claude --plugin-dir /path/to/bcachefs-claude-plugin
 ```
+
+> **Migrating from `bcachefs-dev`?** If you previously installed the old
+> marketplace name, remove it first:
+> ```
+> claude plugin uninstall bcachefs-dev@bcachefs-dev
+> claude plugin marketplace remove bcachefs-dev
+> ```
 
 ## Update
 
