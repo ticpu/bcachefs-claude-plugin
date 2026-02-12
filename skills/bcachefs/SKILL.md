@@ -74,6 +74,11 @@ Pick the relevant ones based on $ARGUMENTS before answering questions.
 - [reflink.md](reflink.md) - Reflink indirection, triggers, IO option propagation, snapshot interaction
 - [ec.md](ec.md) - Erasure coding: stripe geometry, creation lifecycle, fragmentation/reuse, re-striping
 - [encryption.md](encryption.md) - ChaCha20/Poly1305 AEAD, key hierarchy, keyring pain, nonce vulnerability
+- [troubleshooting.md](troubleshooting.md) - **Read when helping users diagnose issues.** py1hon's
+  diagnostic workflow, 11 tracepoint names with symptoms, all sysfs/debugfs paths, `show-super`
+  flag combinations, `fsck` variants, recovery mount options, snapshot error severity table (11
+  errors with actions), advanced techniques: journal livelocks, reflink+IO option propagation
+  debugging, cross-referencing extents/reflink btrees for stuck reconcile
 
 ## Key Architecture Points
 
